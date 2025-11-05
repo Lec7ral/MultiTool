@@ -37,7 +37,12 @@ func (t *NetworkSwitcherTool) GetCategory() string {
 }
 
 func (t *NetworkSwitcherTool) GetIcon() fyne.Resource {
-	return nil
+	resource, err := fyne.LoadResourceFromPath("assets/change.svg")
+	if err != nil {
+		fyne.LogError("Failed to load custom icon", err)
+		return nil
+	}
+	return resource
 }
 
 // --- Main UI ---

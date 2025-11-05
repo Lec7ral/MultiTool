@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	// 1. Inicializar la aplicación y la ventana
+	// 1. Inicializar la aplicación con un ID único para la persistencia
 	myApp := app.NewWithID("com.lec7ral.multitool")
 	myWindow := myApp.NewWindow("Toolbox - Windows Utilities")
 	myWindow.Resize(fyne.NewSize(1050, 600))
