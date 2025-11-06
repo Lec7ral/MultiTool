@@ -12,18 +12,17 @@ import (
 )
 
 // CreateAppLayout construye y devuelve el layout principal de la aplicación.
-func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
+func CreateAppLayout() (fyne.CanvasObject, func(fyne.Window)) {
 	toolRegistry := tools.NewToolRegistry()
 	tools.RegisterDefaultTools(toolRegistry)
 
-	// Agrupar herramientas por categoría
-	categories := make(map[string][]tools.Tool)
+	// Agrupar descriptores de herramientas por categoría
+	categories := make(map[string][]tools.ToolDescriptor)
 	categoryOrder := []string{"System", "Files", "Text", "Network"} // Orden deseado
-	for _, tool := range toolRegistry.GetAll() {
-		categories[tool.GetCategory()] = append(categories[tool.GetCategory()], tool)
+	for _, descriptor := range toolRegistry.GetAllDescriptors() {
+		categories[descriptor.Category] = append(categories[descriptor.Category], descriptor)
 	}
 
-	// Mapa de iconos para las categorías
 	categoryIcons := map[string]fyne.Resource{
 		"System":  theme.SettingsIcon(),
 		"Files":   theme.FolderIcon(),
@@ -35,7 +34,7 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 	categoryTabs := container.NewAppTabs()
 
 	for _, categoryName := range categoryOrder {
-		if toolsInCat, ok := categories[categoryName]; ok {
+		if descriptorsInCat, ok := categories[categoryName]; ok {
 
 			// --- Contenido de la Herramienta (Panel Derecho) ---
 			toolContent := container.NewMax()
@@ -44,29 +43,49 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 			toolTabs := container.NewAppTabs()
 			toolTabs.SetTabLocation(container.TabLocationLeading)
 
-			// Mapa para asociar cada TabItem con su herramienta correspondiente
-			tabToToolMap := make(map[*container.TabItem]tools.Tool)
+			// Mapa para asociar cada TabItem con su descriptor de herramienta
+			tabToDescriptorMap := make(map[*container.TabItem]tools.ToolDescriptor)
 
-			for _, tool := range toolsInCat {
-				tabItem := container.NewTabItemWithIcon(tool.GetName(), tool.GetIcon(), container.NewWithoutLayout())
+			for _, descriptor := range descriptorsInCat {
+				// El contenido inicial de la pestaña está vacío. La herramienta no se crea aquí.
+				tabItem := container.NewTabItemWithIcon(descriptor.Name, descriptor.Icon, container.NewWithoutLayout())
 				toolTabs.Append(tabItem)
-				tabToToolMap[tabItem] = tool
+				tabToDescriptorMap[tabItem] = descriptor
 			}
 
 			toolTabs.OnSelected = func(selectedTab *container.TabItem) {
-				if tool, ok := tabToToolMap[selectedTab]; ok {
-					toolContent.Objects = []fyne.CanvasObject{tool.GetUI()}
-					toolContent.Refresh()
+				if selectedTab == nil {
+					return
+				}
+				if descriptor, ok := tabToDescriptorMap[selectedTab]; ok {
+					// Obtenemos la herramienta (se crea aquí si es la primera vez).
+					tool := toolRegistry.Get(descriptor.Name)
+					if tool != nil {
+						toolContent.Objects = []fyne.CanvasObject{tool.GetUI(nil)}
+						toolContent.Refresh()
+					}
 				}
 			}
 
-			// Cargar la primera herramienta de la categoría por defecto
+			// Cargar la primera herramienta de la categoría por defecto.
 			if len(toolTabs.Items) > 0 {
+				// Seleccionamos la primera pestaña.
 				toolTabs.SelectIndex(0)
-				if firstTool, ok := tabToToolMap[toolTabs.Items[0]]; ok {
-					toolContent.Objects = []fyne.CanvasObject{firstTool.GetUI()}
-					toolContent.Refresh()
+
+				// Y cargamos su contenido manualmente para asegurar que la UI inicial aparezca,
+				// ya que SelectIndex() no siempre dispara OnSelected() al inicio.
+				firstTab := toolTabs.Items[0]
+				if descriptor, ok := tabToDescriptorMap[firstTab]; ok {
+					tool := toolRegistry.Get(descriptor.Name)
+					if tool != nil {
+						toolContent.Objects = []fyne.CanvasObject{tool.GetUI(nil)}
+						toolContent.Refresh()
+					}
 				}
+			} else {
+				// Si no hay herramientas en la categoría, limpiamos el contenido.
+				toolContent.Objects = nil
+				toolContent.Refresh()
 			}
 
 			layout := container.NewBorder(nil, nil, toolTabs, nil, toolContent)
@@ -74,20 +93,41 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 		}
 	}
 
+	// --- Lógica de Arrastrar y Soltar (Drag and Drop) ---
+	setupWindowCallbacks := func(w fyne.Window) {
+		w.SetOnDropped(func(p fyne.Position, uris []fyne.URI) {
+			if categoryTabs.Selected().Text == "Files" {
+				// Obtenemos la instancia de PDF Merger solo cuando se necesita.
+				pdfMergerInstance := toolRegistry.Get("PDF Merger")
+				if dropper, ok := pdfMergerInstance.(tools.FileDropper); ok {
+					var filePaths []string
+					for _, u := range uris {
+						filePaths = append(filePaths, u.Path())
+					}
+					dropper.OnFilesDropped(filePaths)
+				}
+			}
+		})
+	}
+
 	// --- Barra de Estado Inferior ---
 	projectURL, _ := url.Parse("https://github.com/Lec7ral/MultiTool")
 	aboutButton := widget.NewButton("About", func() {
-		aboutContent := container.NewVBox(
-			widget.NewLabelWithStyle("MultiTool v1.0.0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-			widget.NewLabelWithStyle("Developed by Lec7ral", fyne.TextAlignCenter, fyne.TextStyle{}),
-			widget.NewHyperlinkWithStyle("Project on GitHub", projectURL, fyne.TextAlignCenter, fyne.TextStyle{}),
-		)
-		dialog.ShowCustom("About", "Close", aboutContent, myWindow)
+		if fyne.CurrentApp().Driver().AllWindows() != nil && len(fyne.CurrentApp().Driver().AllWindows()) > 0 {
+			activeWindow := fyne.CurrentApp().Driver().AllWindows()[0]
+			aboutContent := container.NewVBox(
+				widget.NewLabelWithStyle("MultiTool v1.0.0", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+				widget.NewLabelWithStyle("Developed by Lec7ral", fyne.TextAlignCenter, fyne.TextStyle{}),
+				widget.NewHyperlinkWithStyle("Project on GitHub", projectURL, fyne.TextAlignCenter, fyne.TextStyle{}),
+			)
+			dialog.ShowCustom("About", "Close", aboutContent, activeWindow)
+		}
 	})
 
-	// Usar un layout vacío en lugar de nil para el Border
-	statusBar := container.NewBorder(container.NewWithoutLayout(), container.NewWithoutLayout(), container.NewWithoutLayout(), aboutButton, container.NewWithoutLayout())
+	statusBar := container.NewBorder(nil, nil, nil, aboutButton, container.NewWithoutLayout())
 
 	// --- Layout Principal Final ---
-	return container.NewBorder(nil, statusBar, nil, nil, categoryTabs)
+	mainLayout := container.NewBorder(nil, statusBar, nil, nil, categoryTabs)
+
+	return mainLayout, setupWindowCallbacks
 }

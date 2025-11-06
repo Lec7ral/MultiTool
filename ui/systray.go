@@ -9,17 +9,12 @@ import (
 )
 
 // InstallSystray configura e instala la bandeja del sistema y su menú.
-func InstallSystray(app fyne.App, window fyne.Window) {
+func InstallSystray(app fyne.App, showWindow func()) {
 	if desk, ok := app.(desktop.App); ok {
-		// El estado inicial es 'oculto' porque esta función se llama después de Hide()
-		isWindowVisible := false
-
 		// Función para construir/reconstruir el menú
 		buildMenu := func() {
-			// Cargar el icono desde el archivo local
 			iconResource, err := fyne.LoadResourceFromPath("icon.png")
 			if err != nil {
-				// Si falla, registrar el error y usar un icono de respaldo
 				fyne.LogError("Failed to load systray icon", err)
 				desk.SetSystemTrayIcon(theme.FyneLogo())
 			} else {
@@ -27,17 +22,10 @@ func InstallSystray(app fyne.App, window fyne.Window) {
 			}
 
 			menu := fyne.NewMenu("Toolbox",
-				fyne.NewMenuItem("Show/Hide", func() {
-					if isWindowVisible {
-						window.Hide()
-						isWindowVisible = false
-					} else {
-						window.Show()
-						isWindowVisible = true
-					}
-				}),
+				fyne.NewMenuItem("Open", showWindow),
 			)
 
+			// Cargar los perfiles de red desde el inicio.
 			loadedProfiles, err := profiles.LoadProfiles()
 			if err == nil && len(loadedProfiles) > 0 {
 				profileSubMenu := fyne.NewMenu("")
