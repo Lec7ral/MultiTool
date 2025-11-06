@@ -46,6 +46,7 @@ type pdfFileItem struct {
 type PDFMergerTool struct {
 	pdfFiles []pdfFileItem
 	fileList *widget.List
+	icon     fyne.Resource // Cache del icono
 }
 
 func New() *PDFMergerTool {
@@ -68,12 +69,16 @@ func (t *PDFMergerTool) GetCategory() string {
 }
 
 func (t *PDFMergerTool) GetIcon() fyne.Resource {
-	resource, err := fyne.LoadResourceFromPath("assets/pdf.svg")
-	if err != nil {
-		fyne.LogError("Failed to load pdf icon", err)
-		return nil
+	// Cargar el icono solo una vez y cachearlo.
+	if t.icon == nil {
+		resource, err := fyne.LoadResourceFromPath("assets/pdf.svg")
+		if err != nil {
+			fyne.LogError("Failed to load pdf icon", err)
+			return nil
+		}
+		t.icon = resource
 	}
-	return resource
+	return t.icon
 }
 
 // OnFilesDropped is called by the app layout when files are dropped.
