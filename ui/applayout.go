@@ -16,6 +16,15 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 	toolRegistry := tools.NewToolRegistry()
 	tools.RegisterDefaultTools(toolRegistry)
 
+	// Obtener una referencia directa a la herramienta PDF Merger
+	var pdfMergerInstance tools.Tool
+	for _, tool := range toolRegistry.GetAll() {
+		if tool.GetName() == "PDF Merger" {
+			pdfMergerInstance = tool
+			break
+		}
+	}
+
 	// Agrupar herramientas por categoría
 	categories := make(map[string][]tools.Tool)
 	categoryOrder := []string{"System", "Files", "Text", "Network"} // Orden deseado
@@ -55,7 +64,7 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 
 			toolTabs.OnSelected = func(selectedTab *container.TabItem) {
 				if tool, ok := tabToToolMap[selectedTab]; ok {
-					toolContent.Objects = []fyne.CanvasObject{tool.GetUI()}
+					toolContent.Objects = []fyne.CanvasObject{tool.GetUI(myWindow)}
 					toolContent.Refresh()
 				}
 			}
@@ -64,7 +73,7 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 			if len(toolTabs.Items) > 0 {
 				toolTabs.SelectIndex(0)
 				if firstTool, ok := tabToToolMap[toolTabs.Items[0]]; ok {
-					toolContent.Objects = []fyne.CanvasObject{firstTool.GetUI()}
+					toolContent.Objects = []fyne.CanvasObject{firstTool.GetUI(myWindow)}
 					toolContent.Refresh()
 				}
 			}
@@ -73,6 +82,20 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 			categoryTabs.Append(container.NewTabItemWithIcon(categoryName, categoryIcons[categoryName], layout))
 		}
 	}
+
+	// --- Lógica de Arrastrar y Soltar (Drag and Drop) ---
+	myWindow.SetOnDropped(func(p fyne.Position, uris []fyne.URI) {
+		// Solo actuar si la pestaña de categoría "Files" está activa
+		if categoryTabs.Selected().Text == "Files" {
+			if dropper, ok := pdfMergerInstance.(tools.FileDropper); ok {
+				var filePaths []string
+				for _, u := range uris {
+					filePaths = append(filePaths, u.Path())
+				}
+				dropper.OnFilesDropped(filePaths)
+			}
+		}
+	})
 
 	// --- Barra de Estado Inferior ---
 	projectURL, _ := url.Parse("https://github.com/Lec7ral/MultiTool")
@@ -85,7 +108,6 @@ func CreateAppLayout(myWindow fyne.Window) fyne.CanvasObject {
 		dialog.ShowCustom("About", "Close", aboutContent, myWindow)
 	})
 
-	// Usar un layout vacío en lugar de nil para el Border
 	statusBar := container.NewBorder(container.NewWithoutLayout(), container.NewWithoutLayout(), container.NewWithoutLayout(), aboutButton, container.NewWithoutLayout())
 
 	// --- Layout Principal Final ---

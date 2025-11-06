@@ -46,7 +46,7 @@ func (t *NetworkSwitcherTool) GetIcon() fyne.Resource {
 }
 
 // --- Main UI ---
-func (t *NetworkSwitcherTool) GetUI() fyne.CanvasObject {
+func (t *NetworkSwitcherTool) GetUI(window fyne.Window) fyne.CanvasObject {
 	statusLabel := widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord
 
@@ -111,8 +111,7 @@ func (t *NetworkSwitcherTool) GetUI() fyne.CanvasObject {
 	})
 
 	manageBtn := widget.NewButton("Manage Profiles", func() {
-		parentWindow := fyne.CurrentApp().Driver().AllWindows()[0]
-		newManagerWindow(parentWindow, refreshAll).Show()
+		newManagerWindow(window, refreshAll).Show()
 	})
 
 	return container.NewVBox(
@@ -178,7 +177,9 @@ func newManagerWindow(parent fyne.Window, onClosed func()) fyne.Window {
 	})
 
 	deleteBtn := widget.NewButton("Delete", func() {
-		if selectedProfile == nil { return }
+		if selectedProfile == nil {
+			return
+		}
 		var newProfiles []profiles.Profile
 		for _, p := range loadedProfiles {
 			if p.Name != selectedProfile.Name {
@@ -224,11 +225,19 @@ func newManagerWindow(parent fyne.Window, onClosed func()) fyne.Window {
 // ApplyProfile applies all settings from a given profile.
 func ApplyProfile(p profiles.Profile) error {
 	if p.NetworkPriority == "Ethernet" {
-		if err := SetInterfaceMetric("Ethernet", 10); err != nil { return err }
-		if err := SetInterfaceMetric("Wi-Fi", 20); err != nil { return err }
+		if err := SetInterfaceMetric("Ethernet", 10); err != nil {
+			return err
+		}
+		if err := SetInterfaceMetric("Wi-Fi", 20); err != nil {
+			return err
+		}
 	} else if p.NetworkPriority == "Wi-Fi" {
-		if err := SetInterfaceMetric("Wi-Fi", 10); err != nil { return err }
-		if err := SetInterfaceMetric("Ethernet", 20); err != nil { return err }
+		if err := SetInterfaceMetric("Wi-Fi", 10); err != nil {
+			return err
+		}
+		if err := SetInterfaceMetric("Ethernet", 20); err != nil {
+			return err
+		}
 	}
 
 	return SetProxyState(p.ProxyEnabled, p.ProxyServer)
@@ -249,13 +258,19 @@ func SetProxyState(enable bool, server string) error {
 	regPath := "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"
 	if enable {
 		cmdEnable := exec.Command("reg", "add", regPath, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f")
-		if _, err := cmdEnable.CombinedOutput(); err != nil { return err }
+		if _, err := cmdEnable.CombinedOutput(); err != nil {
+			return err
+		}
 
 		cmdServer := exec.Command("reg", "add", regPath, "/v", "ProxyServer", "/t", "REG_SZ", "/d", server, "/f")
-		if _, err := cmdServer.CombinedOutput(); err != nil { return err }
+		if _, err := cmdServer.CombinedOutput(); err != nil {
+			return err
+		}
 	} else {
 		cmdDisable := exec.Command("reg", "add", regPath, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "0", "/f")
-		if _, err := cmdDisable.CombinedOutput(); err != nil { return err }
+		if _, err := cmdDisable.CombinedOutput(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

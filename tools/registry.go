@@ -2,12 +2,18 @@ package tools
 
 import "fyne.io/fyne/v2"
 
+// Tool defines the interface for all tools in the application.
 type Tool interface {
 	GetName() string
 	GetDescription() string
 	GetCategory() string
 	GetIcon() fyne.Resource
-	GetUI() fyne.CanvasObject
+	GetUI(fyne.Window) fyne.CanvasObject
+}
+
+// FileDropper is an optional interface for tools that can handle dropped files.
+type FileDropper interface {
+	OnFilesDropped(files []string)
 }
 
 type ToolRegistry struct {
@@ -42,6 +48,6 @@ func (tr *ToolRegistry) GetAll() []Tool {
 }
 
 func RegisterDefaultTools(registry *ToolRegistry) {
-	// Solo registrar la herramienta principal
 	registry.Register("Network Switcher", NewNetworkSwitcherTool())
+	registry.Register("PDF Merger", NewPDFMergerTool())
 }
